@@ -273,8 +273,7 @@ class DBLPSearch:
     t2 = _remove_accents(_un(t2.lower()))
 
     if not(lev):
-      for p in self.publications:
-        if t1 == t2: return True
+      if t1 == t2: return True
 
     else:
       cer = float(_levenshtein(t1,t2))/float(len(t1)) # CER (character error rate)  
