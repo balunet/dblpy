@@ -199,7 +199,7 @@ class DBLPResult():
       if min_cer < threshold: # if CER is below a given threshold, then we return this publication.
         return best
 
-    return None
+    raise SearchError, 'Title "%s" not found in %s publications.\n' %(title, ' '.join(self.query.split('%20')))
 
 class DBLPSearch:
   """
@@ -256,7 +256,7 @@ class DBLPSearch:
           publications.append(publication_bibtex)
     
     if title != None: 
-      return None
+      raise SearchError, 'Title "%s" not found in %s publications.\n' %(title, ' '.join(self.query.split('%20')))
 
     # We return a DBLPResult object with all publications found.
     return DBLPResult(' '.join(self.query.split('%20')), publications, author_keys)
@@ -499,7 +499,8 @@ if __name__ == '__main__':
   (options, args) = parser.parse_args()
 
   if len(args) < 1:
-    parser.error("At least one argument is needed to perform a query.")
+    #parser.error("At least one argument is needed to perform a query.")
+    sys.stderr.write("At least one argument is needed to perform a query.\n")
     sys.exit(100)
 
   query=' '.join(args[0:])
@@ -518,58 +519,88 @@ if __name__ == '__main__':
         if options.threshold != None: # a threshold for approximate search is provided
           
           if float(options.threshold) >= 0.0 and float(options.threshold) <= 1.0:
-            search_result = dblp.search(options.title, lev=True, threshold=options.threshold)
+            
+            try:
+              search_result = dblp.search(options.title, lev=True, threshold=options.threshold)
+            except SearchError:
+              sys.stderr.write('Title "%s" not found in %s publications.\n'%(options.title, query))
+              sys.exit(102)
+
           else:
-            parser.error("CER Threshold must be a float between [0.0-1.0].")
+            #parser.error("CER Threshold must be a float between [0.0-1.0].")
+            sys.stderr.write("CER Threshold must be a float between [0.0-1.0].\n")
             sys.exit(101)
         
         else: # use default threshold
-          search_result = dblp.search(options.title, lev=True)
+          
+          try:
+            search_result = dblp.search(options.title, lev=True)
+          except SearchError:
+            sys.stderr.write('Title "'+options.title+'" not found in '+query+'\'s publications.\n')
+            sys.exit(102)
       
       else: # approximate search disabled => "exact" query
-        search_result = dblp.search(options.title)
+        
+        try:
+          search_result = dblp.search(options.title)
+        except SearchError:
+          sys.stderr.write('Title "'+options.title+'" not found in '+query+'\'s publications.\n')
+          sys.exit(102)
       
-      # Evaluate and output result
-      if search_result != None:
-        p = search_result.get_publications()[0]
-        print_publication(p, options)
-      else:
-        print 'Title "'+options.title+'" not found in '+query+'\'s publications.'
-
+      p = search_result.get_publications()[0]
+      print_publication(p, options)
     
     else: # title search during dblp query disabled => the search is performed after the queries end.
-
-      search_result = dblp.search() # perform the dblp queries and gather all publications.
+      
+      try:
+        search_result = dblp.search() # perform the dblp queries and gather all publications.
+      except SearchError:
+        sys.stderr.write('No publications found for '+query+'.\n')
+        sys.exit(102)
 
       if options.a_flag: # approximate search enabled
 
         if options.threshold != None: # a threshold for approximate search is provided
 
           if float(options.threshold) >= 0.0 and float(options.threshold) <= 1.0:
-            p = search_result.search_by_title(options.title, lev=True, threshold=float(options.threshold))
+            try:
+              p = search_result.search_by_title(options.title, lev=True, threshold=float(options.threshold))
+            except SearchError:
+              sys.stderr.write('Title "'+options.title+'" not found in '+query+'\'s publications.\n')
+              sys.exit(102)
           else:
-            parser.error("CER Threshold must be a float between [0.0-1.0].")
+            #parser.error("CER Threshold must be a float between [0.0-1.0].")
+            sys.stderr.write("CER Threshold must be a float between [0.0-1.0].\n")
             sys.exit(101)
 
         else: # use default threshold
-          p = search_result.search_by_title(options.title, lev=True)
+          try:
+            p = search_result.search_by_title(options.title, lev=True)
+          except SearchError:
+            sys.stderr.write('Title "'+options.title+'" not found in '+query+'\'s publications.\n')
+            sys.exit(102)
 
       else: # approximate search disabled => "exact" query
-        p = search_result.search_by_title(options.title)
+        try:
+          p = search_result.search_by_title(options.title)
+        except SearchError:
+          sys.stderr.write('Title "'+options.title+'" not found in '+query+'\'s publications.\n')
+          sys.exit(102)
 
-      # Evaluate and output result
-      if p != None:
-        print_publication(p, options)
-      else:
-        print 'Title "'+options.title+'" not found in '+query+'\'s publications.'
+      print_publication(p, options)
 
   else: # Publication title search disabled => Output all publications
     
     # perform the dblp queries and gather all publications.
-    search_result = dblp.search()
-    publications = search_result.get_publications()
+    try:
+      search_result = dblp.search()
+      publications = search_result.get_publications()
 
-    # Output results
-    for p in publications:
-      print_publication(p, options)
+      # Output results
+      for p in publications:
+        print_publication(p, options)
+
+    except SearchError:
+      sys.stderr.write('No publications found for '+query+'.\n')
+      sys.exit(102)
 
